@@ -1,0 +1,46 @@
+@import "tailwindcss";
+@import "katex/dist/katex.min.css";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --color-brand-blue-light: #f0f7ff;
+  --color-brand-blue-medium: #3b82f6;
+  --color-brand-blue-dark: #1e40af;
+  --color-brand-blue-soft: #e0f2fe;
+}
+
+body {
+  @apply bg-brand-blue-light text-slate-800 font-sans antialiased;
+}
+
+.card {
+  @apply bg-white rounded-2xl shadow-sm border border-brand-blue-soft p-6;
+}
+
+.btn-primary {
+  @apply bg-brand-blue-medium hover:bg-brand-blue-dark text-white px-4 py-2 rounded-xl transition-colors duration-200 font-medium disabled:opacity-50;
+}
+
+.btn-secondary {
+  @apply bg-white border border-brand-blue-medium text-brand-blue-medium hover:bg-brand-blue-light px-4 py-2 rounded-xl transition-colors duration-200 font-medium;
+}
+
+.math-renderer {
+  @apply prose prose-slate max-w-none;
+}
+
+.math-renderer p {
+  @apply mb-4 leading-relaxed;
+}
+
+.math-renderer h3 {
+  @apply text-lg font-bold text-brand-blue-dark mt-6 mb-3;
+}
+
+.math-renderer ul, .math-renderer ol {
+  @apply my-4 pl-6;
+}
+
+.math-renderer li {
+  @apply mb-2;
+}
