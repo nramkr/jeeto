@@ -21,6 +21,10 @@ interface Question {
   answer_type: 'SCA' | 'MCA' | 'TF' | 'FITB';
   solution_text?: string;
   quick_trick_text?: string;
+  solution_prompt?: string;
+  quick_trick_prompt?: string;
+  solution_image_data?: string;
+  quick_trick_image_data?: string;
 }
 
 interface Subject {
@@ -52,6 +56,8 @@ export default function Practice() {
   const [generatingTrick, setGeneratingTrick] = useState(false);
   const [showSolution, setShowSolution] = useState(false);
   const [showTrick, setShowTrick] = useState(false);
+  const [showSolutionPrompt, setShowSolutionPrompt] = useState(false);
+  const [showTrickPrompt, setShowTrickPrompt] = useState(false);
   const [currentAttemptId, setCurrentAttemptId] = useState<string | null>(null);
 
   // Selection states
@@ -256,15 +262,19 @@ export default function Practice() {
     const question = questions[currentIndex];
     let isCorrect = false;
 
-    if (question.answer_type === 'MCA') {
-      const selectedArr = (selectedAnswer || '').split(',').filter(Boolean).sort();
-      const correctArr = (question.correct_answer || '').split(',').filter(Boolean).sort();
-      isCorrect = selectedArr.length === correctArr.length && selectedArr.every((v, i) => v === correctArr[i]);
-    } else if (question.answer_type === 'FITB') {
-      isCorrect = (selectedAnswer || '').trim().toLowerCase() === (question.correct_answer || '').trim().toLowerCase();
-    } else {
-      isCorrect = selectedAnswer === question.correct_answer;
-    }
+    const checkCorrect = () => {
+      if (question.answer_type === 'MCA') {
+        const selectedArr = (selectedAnswer || '').split(',').map(s => s.trim()).filter(Boolean).sort();
+        const correctArr = (question.correct_answer || '').split(',').map(s => s.trim()).filter(Boolean).sort();
+        return selectedArr.length === correctArr.length && selectedArr.every((v, i) => v === correctArr[i]);
+      } else if (question.answer_type === 'FITB') {
+        return (selectedAnswer || '').trim().toLowerCase() === (question.correct_answer || '').trim().toLowerCase();
+      } else {
+        return (selectedAnswer || '').trim() === (question.correct_answer || '').trim();
+      }
+    };
+
+    isCorrect = checkCorrect();
 
     const { data: { user } } = await supabase.auth.getUser();
     
@@ -305,6 +315,8 @@ export default function Practice() {
       setCurrentAttemptId(null);
       setShowSolution(false);
       setShowTrick(false);
+      setShowSolutionPrompt(false);
+      setShowTrickPrompt(false);
     } else {
       setSessionFinished(true);
     }
@@ -326,7 +338,8 @@ export default function Practice() {
     setGeneratingSolution(true);
     try {
       const fullQ = await getQuestionWithDetails(q.id);
-      let solution = await generateSolution(fullQ);
+      const { text, prompt, imageData } = await generateSolution(fullQ);
+      let solution = text;
 
       // Clean up accidental JSON or code blocks
       if (solution) {
@@ -345,6 +358,8 @@ export default function Practice() {
         await updateQuestionContent(q.id, { solution_text: solution });
         const updatedQuestions = [...questions];
         updatedQuestions[currentIndex].solution_text = solution;
+        updatedQuestions[currentIndex].solution_prompt = prompt;
+        updatedQuestions[currentIndex].solution_image_data = imageData;
         setQuestions(updatedQuestions);
         setShowSolution(true);
       }
@@ -371,7 +386,8 @@ export default function Practice() {
     setGeneratingTrick(true);
     try {
       const fullQ = await getQuestionWithDetails(q.id);
-      let trick = await generateTrick(fullQ);
+      const { text, prompt, imageData } = await generateTrick(fullQ);
+      let trick = text;
       
       // Clean up accidental JSON or code blocks
       if (trick) {
@@ -391,6 +407,8 @@ export default function Practice() {
         await updateQuestionContent(q.id, { quick_trick_text: trick });
         const updatedQuestions = [...questions];
         updatedQuestions[currentIndex].quick_trick_text = trick;
+        updatedQuestions[currentIndex].quick_trick_prompt = prompt;
+        updatedQuestions[currentIndex].quick_trick_image_data = imageData;
         setQuestions(updatedQuestions);
         setShowTrick(true);
       }
@@ -818,6 +836,21 @@ export default function Practice() {
 
   const currentQuestion = questions[currentIndex];
 
+  const checkIsCorrect = () => {
+    if (!currentQuestion || !selectedAnswer) return false;
+    if (currentQuestion.answer_type === 'MCA') {
+      const selectedArr = (selectedAnswer || '').split(',').map(s => s.trim()).filter(Boolean).sort();
+      const correctArr = (currentQuestion.correct_answer || '').split(',').map(s => s.trim()).filter(Boolean).sort();
+      return selectedArr.length === correctArr.length && selectedArr.every((v, i) => v === correctArr[i]);
+    } else if (currentQuestion.answer_type === 'FITB') {
+      return (selectedAnswer || '').trim().toLowerCase() === (currentQuestion.correct_answer || '').trim().toLowerCase();
+    } else {
+      return (selectedAnswer || '').trim() === (currentQuestion.correct_answer || '').trim();
+    }
+  };
+
+  const isCurrentCorrect = checkIsCorrect();
+
   return (
     <div className="max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
@@ -880,6 +913,16 @@ export default function Practice() {
                 placeholder="Type your answer here..."
                 className="w-full p-4 rounded-xl border border-brand-blue-soft focus:ring-2 focus:ring-brand-blue-medium focus:border-transparent outline-none transition-all text-lg"
               />
+              {isSubmitted && (
+                <div className={`mt-3 p-3 rounded-lg border flex items-center space-x-2 ${
+                  (selectedAnswer || '').trim() === (currentQuestion.correct_answer || '').trim() 
+                    ? 'bg-emerald-50 border-emerald-100 text-emerald-700' 
+                    : 'bg-amber-50 border-amber-100 text-amber-700'
+                }`}>
+                  <CheckCircle2 size={18} />
+                  <span className="font-bold">Correct Answer: {currentQuestion.correct_answer || 'N/A'}</span>
+                </div>
+              )}
             </div>
           ) : currentQuestion.answer_type === 'TF' ? (
             <div className="grid grid-cols-2 gap-4 mb-8">
@@ -893,18 +936,18 @@ export default function Practice() {
                       ? 'border-brand-blue-medium bg-brand-blue-light text-brand-blue-dark'
                       : 'border-brand-blue-soft hover:border-brand-blue-medium/50 text-slate-600'
                   } ${
-                    isSubmitted && option === (currentQuestion.correct_answer || '')
+                    isSubmitted && option === (currentQuestion.correct_answer || '').trim()
                       ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                      : isSubmitted && selectedAnswer === option && option !== (currentQuestion.correct_answer || '')
+                      : isSubmitted && selectedAnswer === option && option !== (currentQuestion.correct_answer || '').trim()
                       ? 'border-red-500 bg-red-50 text-red-700'
                       : ''
                   }`}
                 >
                   {option}
-                  {isSubmitted && option === (currentQuestion.correct_answer || '') && (
+                  {isSubmitted && option === (currentQuestion.correct_answer || '').trim() && (
                     <CheckCircle2 className="text-emerald-500 ml-2" size={24} />
                   )}
-                  {isSubmitted && selectedAnswer === option && option !== (currentQuestion.correct_answer || '') && (
+                  {isSubmitted && selectedAnswer === option && option !== (currentQuestion.correct_answer || '').trim() && (
                     <XCircle className="text-red-500 ml-2" size={24} />
                   )}
                 </button>
@@ -918,8 +961,8 @@ export default function Practice() {
                   : selectedAnswer === key;
                 
                 const isCorrectOption = currentQuestion.answer_type === 'MCA'
-                  ? (currentQuestion.correct_answer || '').split(',').includes(key)
-                  : key === currentQuestion.correct_answer;
+                  ? (currentQuestion.correct_answer || '').split(',').map(s => s.trim()).includes(key)
+                  : key === (currentQuestion.correct_answer || '').trim();
 
                 return (
                   <button
@@ -975,28 +1018,42 @@ export default function Practice() {
 
           {isSubmitted && (
               <div className="mb-6 p-4 bg-slate-50 rounded-xl border border-brand-blue-soft">
-                <div className="flex items-center space-x-2 mb-4">
-                  {selectedAnswer === (currentQuestion.correct_answer || '') ? (
+                <div className="flex flex-col space-y-4 mb-4">
+                  {isCurrentCorrect ? (
                     <div className="flex items-center space-x-2 text-emerald-600 font-bold">
                       <CheckCircle2 size={20} />
                       <span>Correct! Well done.</span>
                     </div>
                   ) : (
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       <div className="flex items-center space-x-2 text-red-600 font-bold">
                         <XCircle size={20} />
                         <span>Incorrect. Review the concept.</span>
                       </div>
-                      {currentQuestion.answer_type === 'FITB' && (
-                        <div className="text-sm text-slate-600 bg-white p-2 rounded border border-red-100">
-                          <span className="font-semibold">Correct Answer:</span> {currentQuestion.correct_answer || 'N/A'}
+                      <div className="text-sm text-slate-700 bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+                        <span className="font-bold text-brand-blue-dark block mb-1">Correct Answer:</span>
+                        <div className="flex items-center space-x-2">
+                          {currentQuestion.answer_type === 'FITB' || currentQuestion.answer_type === 'TF' ? (
+                            <span className="text-lg font-mono text-emerald-600">{currentQuestion.correct_answer}</span>
+                          ) : (
+                            <div className="flex flex-wrap gap-2">
+                              {(currentQuestion.correct_answer || '').split(',').map(ans => (
+                                <span key={ans} className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 font-bold border border-emerald-200">
+                                  {ans.trim()}
+                                </span>
+                              ))}
+                              <span className="text-slate-500 self-center ml-2">
+                                {currentQuestion.answer_type === 'MCA' ? '(Multiple options)' : ''}
+                              </span>
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </div>
                   )}
                 </div>
 
-                {selectedAnswer !== (currentQuestion.correct_answer || '') && (
+                {!isCurrentCorrect && (
                   <>
                     <label className="block text-sm font-medium text-slate-700 mb-2">Why did you miss this?</label>
                     <select 
@@ -1048,8 +1105,35 @@ export default function Practice() {
                   animate={{ opacity: 1, y: 0 }}
                   className="p-6 bg-slate-50 rounded-xl border border-brand-blue-soft"
                 >
-                  <h3 className="text-lg font-bold text-brand-blue-dark mb-4">Detailed Solution</h3>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold text-brand-blue-dark">Detailed Solution</h3>
+                    {currentQuestion.solution_prompt && (
+                      <button 
+                        onClick={() => setShowSolutionPrompt(!showSolutionPrompt)}
+                        className="text-xs text-brand-blue-medium hover:underline flex items-center space-x-1"
+                      >
+                        <span>{showSolutionPrompt ? 'Hide Prompt' : 'View Prompt'}</span>
+                      </button>
+                    )}
+                  </div>
                   <MathRenderer text={currentQuestion.solution_text} />
+                  {showSolutionPrompt && currentQuestion.solution_prompt && (
+                    <div className="mt-4 space-y-2">
+                      <div className="p-3 bg-slate-100 rounded text-[10px] font-mono text-slate-600 whitespace-pre-wrap border border-slate-200 overflow-x-auto">
+                        <div className="font-bold border-b border-slate-200 mb-2 pb-1 uppercase tracking-wider">Text Prompt</div>
+                        {currentQuestion.solution_prompt}
+                      </div>
+                      {currentQuestion.solution_image_data && (
+                        <div className="p-3 bg-slate-100 rounded text-[10px] font-mono text-slate-600 border border-slate-200 overflow-x-auto">
+                          <div className="font-bold border-b border-slate-200 mb-2 pb-1 uppercase tracking-wider">Image Data (Base64)</div>
+                          <div className="break-all">
+                            {currentQuestion.solution_image_data.substring(0, 100)}... 
+                            <span className="text-brand-blue-medium font-bold"> [{currentQuestion.solution_image_data.length} characters]</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </motion.div>
               )}
 
@@ -1059,11 +1143,38 @@ export default function Practice() {
                   animate={{ opacity: 1, y: 0 }}
                   className="p-6 bg-amber-50 rounded-xl border border-amber-200"
                 >
-                  <h3 className="text-lg font-bold text-amber-800 mb-4 flex items-center space-x-2">
-                    <Lightbulb size={20} />
-                    <span>30-Second Trick</span>
-                  </h3>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold text-amber-800 flex items-center space-x-2">
+                      <Lightbulb size={20} />
+                      <span>30-Second Trick</span>
+                    </h3>
+                    {currentQuestion.quick_trick_prompt && (
+                      <button 
+                        onClick={() => setShowTrickPrompt(!showTrickPrompt)}
+                        className="text-xs text-amber-700 hover:underline flex items-center space-x-1"
+                      >
+                        <span>{showTrickPrompt ? 'Hide Prompt' : 'View Prompt'}</span>
+                      </button>
+                    )}
+                  </div>
                   <MathRenderer text={currentQuestion.quick_trick_text} />
+                  {showTrickPrompt && currentQuestion.quick_trick_prompt && (
+                    <div className="mt-4 space-y-2">
+                      <div className="p-3 bg-amber-100/50 rounded text-[10px] font-mono text-amber-900/70 whitespace-pre-wrap border border-amber-200 overflow-x-auto">
+                        <div className="font-bold border-b border-amber-200/30 mb-2 pb-1 uppercase tracking-wider text-amber-800/50">Text Prompt</div>
+                        {currentQuestion.quick_trick_prompt}
+                      </div>
+                      {currentQuestion.quick_trick_image_data && (
+                        <div className="p-3 bg-amber-100/50 rounded text-[10px] font-mono text-amber-900/70 border border-amber-200 overflow-x-auto">
+                          <div className="font-bold border-b border-amber-200/30 mb-2 pb-1 uppercase tracking-wider text-amber-800/50">Image Data (Base64)</div>
+                          <div className="break-all">
+                            {currentQuestion.quick_trick_image_data.substring(0, 100)}...
+                            <span className="text-amber-700 font-bold"> [{currentQuestion.quick_trick_image_data.length} characters]</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </motion.div>
               )}
             </div>

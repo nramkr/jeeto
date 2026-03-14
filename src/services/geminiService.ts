@@ -2,7 +2,8 @@ import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 
 async function urlToBase64(url: string): Promise<{ data: string; mimeType: string }> {
   try {
-    const response = await fetch(url);
+    const encodedUrl = encodeURI(url);
+    const response = await fetch(encodedUrl);
     const blob = await response.blob();
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -27,8 +28,12 @@ export async function generateSolution(question: any) {
   const model = "gemini-3.1-pro-preview";
   
   const imagePart = await urlToBase64(question.question_text);
+  const encodedUrl = encodeURI(question.question_text);
   
   const prompt = `
+    DEBUG INFO:
+    Image URL: ${encodedUrl}
+
     SYSTEM PROMPT:
     You are an expert IIT-JEE mentor.
     Analyze the provided image which contains a JEE question.
@@ -58,10 +63,12 @@ export async function generateSolution(question: any) {
         { text: prompt }
       ]
     },
-    config: { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
+    config: { 
+      thinkingConfig: { thinkingLevel: ThinkingLevel.LOW }
+    }
   });
 
-  return response.text;
+  return { text: response.text, prompt, imageData: imagePart.data };
 }
 
 export async function generateTrick(question: any) {
@@ -72,8 +79,12 @@ export async function generateTrick(question: any) {
   const model = "gemini-3.1-pro-preview";
   
   const imagePart = await urlToBase64(question.question_text);
+  const encodedUrl = encodeURI(question.question_text);
   
   const prompt = `
+    DEBUG INFO:
+    Image URL: ${encodedUrl}
+
     SYSTEM PROMPT:
     You are a JEE problem-solving strategist.
     Analyze the provided image which contains a JEE question.
@@ -104,10 +115,12 @@ export async function generateTrick(question: any) {
         { text: prompt }
       ]
     },
-    config: { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
+    config: { 
+      thinkingConfig: { thinkingLevel: ThinkingLevel.LOW }
+    }
   });
 
-  return response.text;
+  return { text: response.text, prompt, imageData: imagePart.data };
 }
 
 export async function generateCheatsheet(topic: any) {
