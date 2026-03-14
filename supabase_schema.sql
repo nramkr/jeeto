@@ -69,3 +69,4 @@ CREATE POLICY "Users can manage their own attempts" ON user_question_attempts FO
 CREATE POLICY "Users can view cheatsheets" ON topic_cheatsheets FOR SELECT TO authenticated USING (true);
 CREATE POLICY "Users can save cheatsheets" ON topic_cheatsheets FOR INSERT TO authenticated WITH CHECK (true);
 CREATE POLICY "Users can view questions" ON questions FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Users can update questions" ON questions FOR UPDATE TO authenticated USING (true) WITH CHECK (true);

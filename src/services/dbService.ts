@@ -18,12 +18,20 @@ export async function getQuestionWithDetails(questionId: string) {
 }
 
 export async function updateQuestionContent(questionId: string, updates: { solution_text?: string; quick_trick_text?: string }) {
-  const { error } = await supabase
-    .from('questions')
-    .update(updates)
-    .eq('id', questionId);
+  try {
+    const { error } = await supabase
+      .from('questions')
+      .update(updates)
+      .eq('id', questionId);
 
-  if (error) throw error;
+    if (error) {
+      console.error('Supabase Update Error:', error);
+      throw error;
+    }
+  } catch (err) {
+    console.error('Failed to update question content:', err);
+    throw err;
+  }
 }
 
 export async function getHierarchy() {

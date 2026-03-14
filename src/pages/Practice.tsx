@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronRight, ChevronLeft, Timer, CheckCircle2, XCircle, AlertCircle, BookOpen, Layers, Play } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Timer, CheckCircle2, XCircle, AlertCircle, BookOpen, Layers, Play, Maximize2, Minimize2, ZoomIn, ZoomOut } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import MathRenderer from '../components/MathRenderer';
 import DiagramRenderer from '../components/practice/DiagramRenderer';
@@ -47,6 +47,8 @@ export default function Practice() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isZenMode, setIsZenMode] = useState(false);
+  const [isZoomed, setIsZoomed] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [loading, setLoading] = useState(true);
   const [errorType, setErrorType] = useState<string>('none');
@@ -355,7 +357,12 @@ export default function Practice() {
       }
 
       if (solution) {
-        await updateQuestionContent(q.id, { solution_text: solution });
+        try {
+          await updateQuestionContent(q.id, { solution_text: solution });
+        } catch (saveErr) {
+          console.error('Failed to save solution to DB:', saveErr);
+          // We still show it to the user even if saving failed
+        }
         const updatedQuestions = [...questions];
         updatedQuestions[currentIndex].solution_text = solution;
         updatedQuestions[currentIndex].solution_prompt = prompt;
@@ -404,7 +411,12 @@ export default function Practice() {
       }
 
       if (trick) {
-        await updateQuestionContent(q.id, { quick_trick_text: trick });
+        try {
+          await updateQuestionContent(q.id, { quick_trick_text: trick });
+        } catch (saveErr) {
+          console.error('Failed to save trick to DB:', saveErr);
+          // We still show it to the user even if saving failed
+        }
         const updatedQuestions = [...questions];
         updatedQuestions[currentIndex].quick_trick_text = trick;
         updatedQuestions[currentIndex].quick_trick_prompt = prompt;
@@ -852,23 +864,43 @@ export default function Practice() {
   const isCurrentCorrect = checkIsCorrect();
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center space-x-4">
-          <span className="text-sm font-medium text-brand-blue-medium bg-brand-blue-soft px-3 py-1 rounded-full uppercase tracking-wider">
-            {currentQuestion.exam_level}
-          </span>
-          <span className="text-sm text-slate-400">
-            Question {currentIndex + 1} of {questions.length}
-          </span>
+    <div className={`${isZenMode ? 'fixed inset-0 z-[100] bg-brand-blue-light overflow-y-auto p-4 md:p-8' : 'max-w-4xl mx-auto'}`}>
+      <div className={`${isZenMode ? 'max-w-4xl mx-auto' : ''}`}>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center space-x-4">
+            <span className="text-sm font-medium text-brand-blue-medium bg-brand-blue-soft px-3 py-1 rounded-full uppercase tracking-wider">
+              {currentQuestion.exam_level}
+            </span>
+            <span className="text-sm text-slate-400">
+              Question {currentIndex + 1} of {questions.length}
+            </span>
+          </div>
+          <div className="flex items-center space-x-4">
+            <button 
+              onClick={() => setIsZenMode(!isZenMode)}
+              className={`p-2 rounded-lg transition-all shadow-sm flex items-center space-x-2 ${isZenMode ? 'bg-brand-blue-medium text-white' : 'bg-white text-slate-400 hover:text-brand-blue-medium border border-slate-200'}`}
+              title={isZenMode ? "Exit Zen Mode" : "Enter Zen Mode"}
+            >
+              {isZenMode ? (
+                <>
+                  <Minimize2 size={18} />
+                  <span className="text-sm font-medium pr-1">Exit Zen Mode</span>
+                </>
+              ) : (
+                <>
+                  <Maximize2 size={18} />
+                  <span className="text-sm font-medium pr-1">Zen Mode</span>
+                </>
+              )}
+            </button>
+            <div className="flex items-center space-x-2 text-slate-500 font-mono bg-white px-3 py-1.5 rounded-lg border border-slate-200 shadow-sm">
+              <Timer size={18} />
+              <span>{Math.floor(seconds / 60)}:{(seconds % 60).toString().padStart(2, '0')}</span>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center space-x-2 text-slate-500 font-mono">
-          <Timer size={18} />
-          <span>{Math.floor(seconds / 60)}:{(seconds % 60).toString().padStart(2, '0')}</span>
-        </div>
-      </div>
 
-      <AnimatePresence mode="wait">
+        <AnimatePresence mode="wait">
         <motion.div
           key={currentQuestion.id}
           initial={{ opacity: 0, x: 20 }}
@@ -894,13 +926,55 @@ export default function Practice() {
             )}
           </div>
 
-          <div className="mb-8 overflow-hidden rounded-xl bg-slate-50 flex justify-center items-center p-4 border border-slate-100">
-            <img 
-              src={currentQuestion.question_text} 
-              alt="Question" 
-              className="max-w-full h-auto max-h-[500px] object-contain rounded-lg shadow-sm"
-              referrerPolicy="no-referrer"
-            />
+          <div className="mb-8 relative group">
+            <div 
+              className={`overflow-hidden rounded-xl bg-slate-50 flex justify-center items-center p-4 border border-slate-100 transition-all cursor-zoom-in min-h-[200px]`}
+              onClick={() => setIsZoomed(true)}
+            >
+              <img 
+                src={currentQuestion.question_text} 
+                alt="Question" 
+                className="max-w-full h-auto max-h-[500px] object-contain rounded-lg shadow-sm group-hover:scale-[1.02] transition-transform duration-300"
+                referrerPolicy="no-referrer"
+              />
+              <div className="absolute top-4 right-4 p-2 bg-white/90 backdrop-blur-sm rounded-lg border border-slate-200 text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm">
+                <ZoomIn size={18} />
+              </div>
+            </div>
+            
+            <AnimatePresence>
+              {isZoomed && (
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="fixed inset-0 z-[200] bg-black/90 flex items-center justify-center p-4 md:p-12 cursor-zoom-out"
+                  onClick={() => setIsZoomed(false)}
+                >
+                  <motion.img 
+                    initial={{ scale: 0.9 }}
+                    animate={{ scale: 1 }}
+                    exit={{ scale: 0.9 }}
+                    src={currentQuestion.question_text} 
+                    alt="Question Enlarged" 
+                    className="max-w-full max-h-full object-contain rounded-lg shadow-2xl"
+                    referrerPolicy="no-referrer"
+                  />
+                  <button 
+                    className="absolute top-8 right-8 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsZoomed(false);
+                    }}
+                  >
+                    <ZoomOut size={24} />
+                  </button>
+                  <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-white/60 text-sm font-medium bg-black/40 px-4 py-2 rounded-full backdrop-blur-md">
+                    Click anywhere to close
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {currentQuestion.answer_type === 'FITB' ? (
@@ -1207,5 +1281,6 @@ export default function Practice() {
         </motion.div>
       </AnimatePresence>
     </div>
+  </div>
   );
 }
