@@ -54,6 +54,24 @@ export default function Practice() {
   const [errorType, setErrorType] = useState<string>('none');
   const [sessionFinished, setSessionFinished] = useState(false);
   const [sessionStats, setSessionStats] = useState({ correct: 0, total: 0, time: 0 });
+
+  const normalizeAnswer = (val: string, options?: any) => {
+    const v = (val || '').trim().toUpperCase();
+    if (['A', 'B', 'C', 'D', 'E'].includes(v)) return v;
+    
+    const index = parseInt(v);
+    if (!isNaN(index)) {
+      // If options are provided, check for 0-indexing
+      let offset = 1;
+      if (options) {
+        const keys = Object.keys(options);
+        if (keys.includes('0')) offset = 0;
+      }
+      return String.fromCharCode(65 + (index - offset));
+    }
+    return v;
+  };
+
   const [generatingSolution, setGeneratingSolution] = useState(false);
   const [generatingTrick, setGeneratingTrick] = useState(false);
   const [showSolution, setShowSolution] = useState(false);
@@ -266,13 +284,13 @@ export default function Practice() {
 
     const checkCorrect = () => {
       if (question.answer_type === 'MCA') {
-        const selectedArr = (selectedAnswer || '').split(',').map(s => s.trim()).filter(Boolean).sort();
-        const correctArr = (question.correct_answer || '').split(',').map(s => s.trim()).filter(Boolean).sort();
+        const selectedArr = (selectedAnswer || '').split(',').map(s => normalizeAnswer(s, question.options)).filter(Boolean).sort();
+        const correctArr = (question.correct_answer || '').split(',').map(s => normalizeAnswer(s, question.options)).filter(Boolean).sort();
         return selectedArr.length === correctArr.length && selectedArr.every((v, i) => v === correctArr[i]);
       } else if (question.answer_type === 'FITB') {
         return (selectedAnswer || '').trim().toLowerCase() === (question.correct_answer || '').trim().toLowerCase();
       } else {
-        return (selectedAnswer || '').trim() === (question.correct_answer || '').trim();
+        return normalizeAnswer(selectedAnswer, question.options) === normalizeAnswer(question.correct_answer || '', question.options);
       }
     };
 
@@ -851,13 +869,13 @@ export default function Practice() {
   const checkIsCorrect = () => {
     if (!currentQuestion || !selectedAnswer) return false;
     if (currentQuestion.answer_type === 'MCA') {
-      const selectedArr = (selectedAnswer || '').split(',').map(s => s.trim()).filter(Boolean).sort();
-      const correctArr = (currentQuestion.correct_answer || '').split(',').map(s => s.trim()).filter(Boolean).sort();
+      const selectedArr = (selectedAnswer || '').split(',').map(s => normalizeAnswer(s, currentQuestion.options)).filter(Boolean).sort();
+      const correctArr = (currentQuestion.correct_answer || '').split(',').map(s => normalizeAnswer(s, currentQuestion.options)).filter(Boolean).sort();
       return selectedArr.length === correctArr.length && selectedArr.every((v, i) => v === correctArr[i]);
     } else if (currentQuestion.answer_type === 'FITB') {
       return (selectedAnswer || '').trim().toLowerCase() === (currentQuestion.correct_answer || '').trim().toLowerCase();
     } else {
-      return (selectedAnswer || '').trim() === (currentQuestion.correct_answer || '').trim();
+      return normalizeAnswer(selectedAnswer, currentQuestion.options) === normalizeAnswer(currentQuestion.correct_answer || '', currentQuestion.options);
     }
   };
 
@@ -1035,8 +1053,8 @@ export default function Practice() {
                   : selectedAnswer === key;
                 
                 const isCorrectOption = currentQuestion.answer_type === 'MCA'
-                  ? (currentQuestion.correct_answer || '').split(',').map(s => s.trim()).includes(key)
-                  : key === (currentQuestion.correct_answer || '').trim();
+                  ? (currentQuestion.correct_answer || '').split(',').map(s => normalizeAnswer(s, currentQuestion.options)).includes(normalizeAnswer(key, currentQuestion.options))
+                  : normalizeAnswer(key, currentQuestion.options) === normalizeAnswer(currentQuestion.correct_answer || '', currentQuestion.options);
 
                 return (
                   <button
