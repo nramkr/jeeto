@@ -2,8 +2,9 @@ import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 
 async function urlToBase64(url: string): Promise<{ data: string; mimeType: string }> {
   try {
-    const encodedUrl = encodeURI(url);
-    const response = await fetch(encodedUrl);
+    // Avoid double encoding by decoding first, then encoding properly
+    const safeUrl = encodeURI(decodeURI(url));
+    const response = await fetch(safeUrl);
     const blob = await response.blob();
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -28,11 +29,11 @@ export async function generateSolution(question: any) {
   const model = "gemini-3.1-pro-preview";
   
   const imagePart = await urlToBase64(question.question_text);
-  const encodedUrl = encodeURI(question.question_text);
+  const safeUrl = encodeURI(decodeURI(question.question_text));
   
   const prompt = `
     DEBUG INFO:
-    Image URL: ${encodedUrl}
+    Image URL: ${safeUrl}
 
     SYSTEM PROMPT:
     You are an expert IIT-JEE mentor.
@@ -79,11 +80,11 @@ export async function generateTrick(question: any) {
   const model = "gemini-3.1-pro-preview";
   
   const imagePart = await urlToBase64(question.question_text);
-  const encodedUrl = encodeURI(question.question_text);
+  const safeUrl = encodeURI(decodeURI(question.question_text));
   
   const prompt = `
     DEBUG INFO:
-    Image URL: ${encodedUrl}
+    Image URL: ${safeUrl}
 
     SYSTEM PROMPT:
     You are a JEE problem-solving strategist.
